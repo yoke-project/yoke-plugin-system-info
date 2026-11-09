@@ -1,0 +1,11 @@
+model: 1
+id: com.yoke.system-info-try
+version: 0.1.0
+arch: x86_64
+core: ">=0.12.0"
+units:
+  system-info:
+    kind: plugin
+    plugin: com.yoke.system-info
+    exec: components/plugins/system-info
+    digest: sha256:9320c9e8a297ae020a09fcad772ed359167cdcf95534614f095d753ee8046ad1

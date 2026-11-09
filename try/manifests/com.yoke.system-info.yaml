@@ -1,0 +1,15 @@
+manifest: 1
+id: com.yoke.system-info
+protocol: 1
+streams:
+  - id: system.uptime
+    tolerates_loss: true
+queries:
+  - id: system.info
+capabilities:
+  - name: query.info.answer
+    governs:
+      query: system.info
+  - name: stream.uptime.publish
+    governs:
+      stream: system.uptime

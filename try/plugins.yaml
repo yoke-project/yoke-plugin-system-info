@@ -1,0 +1,8 @@
+plugins:
+  - id: com.yoke.system-info
+    unit: system-info
+    source: ..
+    tag: null
+    arch: x86_64
+    digest: sha256:9320c9e8a297ae020a09fcad772ed359167cdcf95534614f095d753ee8046ad1
+    taken: 2026-11-09T20:43:09Z

@@ -1,0 +1,9 @@
+plugin: 1
+id: com.yoke.system-info
+language: rust
+program: system-info
+manifest: plugin/com.yoke.system-info.yaml
+build:
+  in: plugin/
+  run: cargo build --release --target "$YOKE_RUST_TARGET" && cp "target/$YOKE_RUST_TARGET/release/system-info" "$YOKE_OUT/system-info"
+architectures: [x86_64, aarch64]

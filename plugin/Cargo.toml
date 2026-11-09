@@ -1,0 +1,15 @@
+[package]
+name = "system-info"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "time"] }
+yoke-sdk = "=0.6.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sysinfo = "0.38.4"
+
+# A Plugin is a program of its own, never a member of a workspace around it.
+[workspace]
