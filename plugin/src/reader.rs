@@ -1,7 +1,7 @@
 //! What the host is, read with `sysinfo`.
 
+use crate::payload::{OsRelease, SCHEMA, Snapshot};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
-use crate::payload::{SCHEMA, Snapshot};
 
 /// The host's identification, which does not change while the Plugin runs, read once.
 #[derive(Debug, Clone)]
@@ -14,6 +14,7 @@ pub struct Host {
     pub physical_cores: u32,
     pub logical_cpus: u32,
     pub total_memory_bytes: u64,
+    pub os_release: OsRelease,
 }
 
 impl Host {
@@ -37,6 +38,7 @@ impl Host {
             physical_cores: System::physical_core_count().unwrap_or(0) as u32,
             logical_cpus: sys.cpus().len() as u32,
             total_memory_bytes: sys.total_memory(),
+            os_release: os_release(),
         }
     }
 
@@ -53,6 +55,7 @@ impl Host {
             logical_cpus: self.logical_cpus,
             total_memory_bytes: self.total_memory_bytes,
             uptime_seconds,
+            os_release: self.os_release.clone(),
         }
     }
 }
@@ -60,4 +63,14 @@ impl Host {
 /// The uptime now, which changes every second and is read at every use.
 pub fn uptime() -> u64 {
     System::uptime()
+}
+
+/// What the operating system says of itself: `/etc/os-release`, or `/usr/lib/os-release` where that is
+/// absent, as os-release(5) has a reader look; nothing where neither is there.
+fn os_release() -> OsRelease {
+    ["/etc/os-release", "/usr/lib/os-release"]
+        .iter()
+        .find_map(|p| std::fs::read_to_string(p).ok())
+        .map(|text| OsRelease::parse(&text))
+        .unwrap_or_default()
 }
