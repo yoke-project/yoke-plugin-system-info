@@ -28,6 +28,94 @@ pub struct Snapshot {
     pub logical_cpus: u32,
     pub total_memory_bytes: u64,
     pub uptime_seconds: u64,
+    /// What the operating system says of itself in `os-release`, each field absent where the file has
+    /// none. Added within schema 1: a reader that does not know it skips it, and one reading an answer
+    /// from before it reads it empty.
+    #[serde(default)]
+    pub os_release: OsRelease,
+}
+
+/// The fields of `os-release` a client shows, named as the file names them in lower case.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OsRelease {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pretty_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub logo: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub home_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub documentation_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub support_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bug_report_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub privacy_policy_url: Option<String>,
+}
+
+impl OsRelease {
+    /// The fields read from the text of an `os-release` file: `KEY=value` lines, the value bare or quoted
+    /// with `"` or `'`, a backslash in a double-quoted value escaping the character after it; comments,
+    /// blank lines, other keys and empty values left out.
+    pub fn parse(text: &str) -> OsRelease {
+        let mut o = OsRelease::default();
+        for line in text.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let Some((key, raw)) = line.split_once('=') else {
+                continue;
+            };
+            let value = unquote(raw.trim());
+            if value.is_empty() {
+                continue;
+            }
+            let slot = match key.trim() {
+                "ID" => &mut o.id,
+                "NAME" => &mut o.name,
+                "PRETTY_NAME" => &mut o.pretty_name,
+                "LOGO" => &mut o.logo,
+                "HOME_URL" => &mut o.home_url,
+                "DOCUMENTATION_URL" => &mut o.documentation_url,
+                "SUPPORT_URL" => &mut o.support_url,
+                "BUG_REPORT_URL" => &mut o.bug_report_url,
+                "PRIVACY_POLICY_URL" => &mut o.privacy_policy_url,
+                _ => continue,
+            };
+            *slot = Some(value);
+        }
+        o
+    }
+}
+
+fn unquote(raw: &str) -> String {
+    let mut chars = raw.chars();
+    match chars.next() {
+        Some('\'') => raw[1..].strip_suffix('\'').unwrap_or(&raw[1..]).to_string(),
+        Some('"') => {
+            let inner = raw[1..].strip_suffix('"').unwrap_or(&raw[1..]);
+            let mut out = String::new();
+            let mut escaped = false;
+            for c in inner.chars() {
+                if escaped {
+                    out.push(c);
+                    escaped = false;
+                } else if c == '\\' {
+                    escaped = true;
+                } else {
+                    out.push(c);
+                }
+            }
+            out
+        }
+        _ => raw.to_string(),
+    }
 }
 
 /// One frame of the uptime stream.
@@ -95,6 +183,11 @@ mod tests {
             logical_cpus: 16,
             total_memory_bytes: 32 * 1024 * 1024 * 1024,
             uptime_seconds: 42,
+            os_release: OsRelease {
+                id: Some("arch".into()),
+                pretty_name: Some("Arch Linux".into()),
+                ..OsRelease::default()
+            },
         }
     }
 
@@ -109,6 +202,41 @@ mod tests {
         let mut s = snapshot();
         s.schema = SCHEMA + 1;
         assert!(Snapshot::from_bytes(&s.to_bytes()).is_err());
+    }
+
+    #[test]
+    fn os_release_is_read_as_the_file_writes_it() {
+        let o = OsRelease::parse(
+            "# a comment\nNAME=\"Arch Linux\"\nPRETTY_NAME='Arch Linux'\nID=arch\nBUILD_ID=rolling\n\n\
+             HOME_URL=\"https://archlinux.org/\"\nLOGO=archlinux-logo\nSUPPORT_URL=\"\"\n\
+             BUG_REPORT_URL=\"https://example.org/say \\\"hi\\\"\"\n",
+        );
+        assert_eq!(
+            o,
+            OsRelease {
+                id: Some("arch".into()),
+                name: Some("Arch Linux".into()),
+                pretty_name: Some("Arch Linux".into()),
+                logo: Some("archlinux-logo".into()),
+                home_url: Some("https://archlinux.org/".into()),
+                bug_report_url: Some("https://example.org/say \"hi\"".into()),
+                ..OsRelease::default()
+            }
+        );
+    }
+
+    #[test]
+    fn an_absent_field_is_not_written_and_an_answer_from_before_reads_empty() {
+        let s = snapshot();
+        let text = String::from_utf8(s.to_bytes()).unwrap();
+        assert!(text.contains("\"pretty_name\":\"Arch Linux\"") && !text.contains("logo"));
+        let before = r#"{"schema":1,"hostname":"bench","os_name":"Arch Linux","os_version":"rolling",
+            "kernel_version":"6.18","cpu_brand":"AMD","physical_cores":8,"logical_cpus":16,
+            "total_memory_bytes":1,"uptime_seconds":2}"#;
+        assert_eq!(
+            Snapshot::from_bytes(before.as_bytes()).unwrap().os_release,
+            OsRelease::default()
+        );
     }
 
     #[test]

@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 
+use system_info::payload::{SCHEMA, Snapshot, Uptime};
 use system_info::reader::Host;
 use system_info::{SystemInfo, declaration};
-use system_info::payload::{SCHEMA, Snapshot, Uptime};
 use yoke_sdk::base::Error;
 use yoke_sdk::plugin::{Activated, Event, Question};
 
@@ -34,6 +34,7 @@ fn bench() -> Host {
         physical_cores: 8,
         logical_cpus: 16,
         total_memory_bytes: 1 << 34,
+        os_release: Default::default(),
     }
 }
 
@@ -55,8 +56,11 @@ fn activated(stream: &str) -> Event {
 
 #[test]
 fn the_manifest_is_the_one_the_declaration_generates() {
-    let committed = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/com.yoke.system-info.yaml"))
-        .expect("the Manifest is committed beside the crate");
+    let committed = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/com.yoke.system-info.yaml"
+    ))
+    .expect("the Manifest is committed beside the crate");
     let generated = declaration().manifest();
     assert_eq!(
         committed, generated,
